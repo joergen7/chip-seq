@@ -1,0 +1,328 @@
+/** ChIP-Seq PAX5
+ *
+ * Data:
+ *
+ * Reference genome HG19
+ * SRA read files
+ *
+ *
+ * Tools and versions:
+ *
+ * BWA         0.5.9rc1
+ * PeakRanger  1.14
+ * SAMtools    1.1
+ * Trimmomatic 0.32
+ * sra-tools   2.4.2
+ * bedtools    2.22.1
+ *
+ */
+
+deftask fastq-filter( filteredfastq( File ) : fastq( File ) quality )in bash *{
+    filteredfastq=filtered.fastq
+    trimmomatic SE -phred33 $fastq $filteredfastq AVGQUAL:$quality
+}*
+
+deftask untar( <out( File )> : tar( File ) )in bash *{
+  tar xf $tar
+  out=`tar tf $tar`
+}*
+
+deftask bwa-build( idx( File ) : fa( File ) )in bash *{
+    idx=bwa-index.tar
+    bwa index -p bwa-index $fa
+    if [ "$?" -ne "0" ]
+    then
+        echo BWA index returned error. >&2
+        exit -1
+    fi
+    tar cf $idx --remove-files bwa-index.*
+}*
+
+deftask bwa-align( bam( File ) : idx( File ) fastq( File ) )in bash *{
+    sam=alignment.sam
+    tar xf $idx
+    bwa aln bwa-index $fastq > aln.sai
+    bwa samse bwa-index aln.sai $fastq | \
+    samtools view -b -F 4 - > $bam
+}*
+
+deftask fastq-dump( fastq( File ) : sra( File ) )in bash *{
+  fastq=$sra.fastq
+  fastq-dump -Z $sra > $fastq
+}*
+
+deftask cat( result( File ) : <list( File )> )in bash *{
+  cat ${list[@]} > $result
+}*
+
+deftask peakranger-ranger( bed( File ) details( File ) : [data( File ) control( File )] pvalue )in bash *{
+  ranger --format bam -d $data -c $control -p $pvalue -o region
+  details=region
+  bed=region_peaks.bed
+}*
+
+deftask samtools-view( bam( File ) : sam( File ) )in bash *{
+  samtools view -bS $sam > $bam
+}*
+
+deftask samtools-sort( sortedbam( File ) : bam( File ) )in bash *{
+    sortedbam=alignment-sorted.bam
+    samtools sort $bam alignment-sorted
+}*
+
+deftask bedtools-merge( out( File ) : <bed( File )> )in bash *{
+  cat ${bed[@]} | bedtools sort | bedtools merge > $out
+}*
+
+deftask samtools-index( bai( File ) : bam( File ) )in bash *{
+  bai=$bam.bai
+  samtools index $bam
+}*
+
+deftask bedtools-multicov( out( File ) : <bam( File )> <bai( File )> bed( File ) )in bash *{
+  i=0
+  for x in ${bam[@]}
+  do
+    ln ${bai[i]} $x.bai
+    i=$((i+1))
+  done
+  bedtools multicov -bams ${bam[@]} -bed $bed > $out
+}*
+
+deftask gunzip( out( File ) : gz( File ) )in bash *{
+  gzip -c -d $gz > $out
+}*
+
+
+
+deftask per-cell-line( region ip-bam ctl-bam : [ip-fastq ctl-fastq] idx ) {
+
+  ip-bam = samtools-sort(
+    bam: bwa-align(
+      fastq: ip-fastq
+      idx:   idx ) );
+
+  ctl-bam = samtools-sort(
+    bam: bwa-align(
+      fastq: ctl-fastq
+      idx:   idx ) );
+
+  region = peakranger-ranger(
+      data:    ip-bam
+      control: ctl-bam
+      pvalue:  '1e-4' );
+
+}
+
+deftask per-chromosome( csv : <ip-fastq> <ctl-fastq> idx ) {
+
+  region ip-bam ctl-bam = per-cell-line(
+    ip-fastq:  ip-fastq
+    ctl-fastq: ctl-fastq
+    idx:       idx );
+
+  ip-bai = samtools-index( bam: ip-bam );
+  ctl-bai = samtools-index( bam: ctl-bam );
+
+  single-region = bedtools-merge( bed: region );
+
+  csv = bedtools-multicov(
+    bam: ip-bam ctl-bam
+    bai: ip-bai ctl-bai
+    bed: single-region );
+}
+
+deftask diffpeakdetect( file_dispertions( File ) file_torte( File ) file_annotated_peaks( File ) file_better_annotated_peaks( File ) file_resB( File ) file_rescHL( File ) : csv( File ) ) in r *{
+
+# params
+file_dispertions<-"DispertionEstimates.pdf"
+file_torte<-"PieChart.pdf"
+file_annotated_peaks<-"AnnotatedPeaks.csv"
+file_better_annotated_peaks<-"AnnotatedPeaksSymbol.csv"
+file_resB<-"res_Bcell.csv"
+file_rescHL<-"res_cHL.csv"
+
+library(DESeq)
+library(gplots)
+
+neu<-read.csv(file=csv, sep="\t", header=F)
+
+colnames(neu)<-c("Chr","Start","End","Raji_IP_1","Raji_IP_2","Namalwa_IP_1","Namalwa_IP_2","Raji_CTL_1",
+                 "Raji_CTL_2","Namalwa_CTL_1","Namalwa_CTL_2","L428_IP_1","L428_IP_2","L428_CTL_1","L428_CTL_2")
+
+
+### REMOVE ###
+neu<-neu[1:1000,]
+### END REMOVE ###
+
+norm.data<-neu[ ,c("Raji_IP_1","Raji_IP_2","Namalwa_IP_1","Namalwa_IP_2","Raji_CTL_1",
+                   "Raji_CTL_2","Namalwa_CTL_1","Namalwa_CTL_2","L428_IP_1","L428_IP_2","L428_CTL_1","L428_CTL_2") ]
+
+
+bed<-data.frame(neu[ , 1:3], ID=paste("BBC", 1:dim(norm.data)[1], sep="_"))
+norm.data<-data.frame(neu[ , 1:3], ID=paste("BBC", 1:dim(norm.data)[1], sep="_"),round(norm.data))
+
+
+bbc.cor<-norm.data
+
+########################################
+### detect differences in conditions ###    
+########################################
+
+head(bbc.cor)
+dat<-bbc.cor[ , -c(1:4)]
+rownames(dat)<-bbc.cor[ , "ID"]
+
+design<-data.frame(
+  row.names = colnames( bbc.cor[,5:length(bbc.cor)] ),
+  condition = c("IP","IP","IP","IP","CTL","CTL","CTL","CTL","IP_2","IP_2","CTL_2","CTL_2"),
+  celltype = c("B","B","B","B","B","B","B","B","cHL","cHL","cHL","cHL")
+)
+
+cds <- newCountDataSet( dat, factor(design$condition) )
+cds <- estimateSizeFactors( cds )
+cds <- estimateDispersions( cds, fitType="local" )
+
+
+str( fitInfo(cds) )
+
+plotDispEsts <- function( cds )
+{
+  plot(
+    rowMeans( counts( cds, normalized=TRUE ) ),
+    fitInfo(cds)$perGeneDispEsts,
+    pch = '.', log="xy" )
+  xg <- 10^seq( -.5, 5, length.out=300 )
+  lines( xg, fitInfo(cds)$dispFun( xg ), col="red" )
+}
+
+pdf(file=file_dispertions, width=20, height=20)
+plotDispEsts( cds )
+dev.off()
+
+
+res.B <- nbinomTest( cds, "IP", "CTL" )
+res.cHL <- nbinomTest( cds, "IP_2", "CTL_2" )
+
+######################
+### annotate peaks ###
+######################
+library(ChIPpeakAnno)
+library(org.Hs.eg.db)
+
+### params
+# peaks <- read.csv2("/vol/home-vol3/wbi/zimmer/projects/biobankcloud/deliverables/WP6/code/bed.bed", header=F, sep = ";")
+peaks<-bed
+head(peaks)
+
+
+peaks  <- as.data.frame( peaks  )
+peaks_ranged <- BED2RangedData( peaks  )
+head(peaks_ranged)
+
+
+ensembl = useMart("ensembl",dataset="hsapiens_gene_ensembl")
+RangedEnsembl <- getAnnotation(ensembl, featureType=c("TSS")) #
+annotated_all = annotatePeakInBatch(peaks_ranged, AnnotationData=RangedEnsembl)
+head(annotated_all)
+
+# pie chart
+pdf(file=file_torte)
+pie(table(as.data.frame(annotated_all)$insideFeature))
+dev.off()
+
+
+anno_all_peaks <- as.data.frame(annotated_all)
+head(anno_all_peaks)
+
+# save annotation:
+# write.csv2(anno_all_peaks, file = file_annotated_peaks)
+
+
+# add gene symbol
+annotated_all <- addGeneIDs(annotated_all,orgAnn="org.Hs.eg.db",IDs2Add=c("symbol", "omim", "entrez_id","genename", "unigene"))
+head( annotated_all )
+annotated_all<- as.data.frame ( annotated_all )
+
+# save annotation:
+# write.csv2( annotated_all, file = file_better_annotated_peaks )
+
+
+
+################################
+### add annotations 2 result ###
+################################
+pos.B<-match(res.B[,"id"] , as.character(annotated_all[ , "peak"]))
+pos.cHL<-match(res.cHL[,"id"] , as.character(annotated_all[ , "peak"]))
+
+
+res.B<-cbind(res.B, annotated_all[ pos.B, ])
+res.cHL<-cbind(res.cHL, annotated_all[ pos.cHL, ])
+
+write.csv(res.B, file=file_resB, row.names=F, sep=";")
+write.csv(res.cHL, file=file_rescHL, row.names=F, sep=";")
+
+
+
+
+
+}*
+
+
+
+
+
+
+
+quality = 30;
+
+
+hg38 = 'hg38/hg38.tar';
+hg19 = 'hg19/hg19.tar';
+
+fa = untar( tar: hg19 );
+
+idx = bwa-build( fa : fa );
+
+
+
+
+
+
+raji-ip-sra = 'pax5_sra/SRR748312.sra' 'pax5_sra/SRR748313.sra';
+raji-ctl-sra = 'pax5_sra/SRR748318.sra' 'pax5_sra/SRR748319.sra';
+
+namalwa-ip-sra = 'pax5_sra/SRR748314.sra' 'pax5_sra/SRR748315.sra';
+namalwa-ctl-sra = 'pax5_sra/SRR748320.sra' 'pax5_sra/SRR748321.sra';
+
+l428pax5-ip-sra = 'pax5_sra/SRR748316.sra' 'pax5_sra/SRR748317.sra';
+l428pax5-ctl-sra = 'pax5_sra/SRR748322.sra' 'pax5_sra/SRR748323.sra';
+
+
+
+ip-fastq = fastq-dump( sra: raji-ip-sra namalwa-ip-sra l428pax5-ip-sra );
+ctl-fastq = fastq-dump( sra: raji-ctl-sra namalwa-ctl-sra l428pax5-ctl-sra );
+
+
+
+
+/*raji-ip-fastq = 'pax5_fastq/Raji_1_IP.fq.gz' 'pax5_fastq/Raji_2_IP.fq.gz';
+raji-ctl-fastq = 'pax5_fastq/Raji_1_input.fq.gz' 'pax5_fastq/Raji_2_input.fq.gz';
+
+namalwa-ip-fastq = 'pax5_fastq/Namalwa_1_IP.fq.gz' 'pax5_fastq/Namalwa_2_IP.fq.gz';
+namalwa-ctl-fastq = 'pax5_fastq/Namalwa_1_input.fq.gz' 'pax5_fastq/Namalwa_2_input.fq.gz';
+
+l428pax5-ip-fastq = 'pax5_fastq/L428-PAX5_1_IP.fq.gz' 'pax5_fastq/L428-PAX5_2_IP.fq.gz';
+l428pax5-ctl-fastq = 'pax5_fastq/L428-PAX5_1_input.fq.gz' 'pax5_fastq/L428-PAX5_2_input.fq.gz';
+
+ip-fastq = gunzip( gz: raji-ip-fastq namalwa-ip-fastq l428pax5-ip-fastq );
+ctl-fastq = gunzip( gz: raji-ctl-fastq namalwa-ctl-fastq l428pax5-ctl-fastq ); */
+
+csv = per-chromosome(
+  ip-fastq:  fastq-filter( fastq: ip-fastq quality: quality )
+  ctl-fastq: fastq-filter( fastq: ctl-fastq quality: quality )
+  idx:       idx );
+
+file_dispertions file_torte = diffpeakdetect( csv: cat( list: csv ) );
+
+file_dispertions file_torte;
