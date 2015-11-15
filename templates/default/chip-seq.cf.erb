@@ -277,7 +277,6 @@ write.csv(res.cHL, file=file_rescHL, row.names=F, sep=";")
 quality = 30;
 
 
-hg38 = 'hg38/hg38.tar';
 hg19 = 'hg19/hg19.tar';
 
 fa = untar( tar: hg19 );
@@ -289,7 +288,7 @@ idx = bwa-build( fa : fa );
 
 
 
-raji-ip-sra = 'pax5_sra/SRR748312.sra' 'pax5_sra/SRR748313.sra';
+/* raji-ip-sra = 'pax5_sra/SRR748312.sra' 'pax5_sra/SRR748313.sra';
 raji-ctl-sra = 'pax5_sra/SRR748318.sra' 'pax5_sra/SRR748319.sra';
 
 namalwa-ip-sra = 'pax5_sra/SRR748314.sra' 'pax5_sra/SRR748315.sra';
@@ -301,7 +300,7 @@ l428pax5-ctl-sra = 'pax5_sra/SRR748322.sra' 'pax5_sra/SRR748323.sra';
 
 
 ip-fastq = fastq-dump( sra: raji-ip-sra namalwa-ip-sra l428pax5-ip-sra );
-ctl-fastq = fastq-dump( sra: raji-ctl-sra namalwa-ctl-sra l428pax5-ctl-sra );
+ctl-fastq = fastq-dump( sra: raji-ctl-sra namalwa-ctl-sra l428pax5-ctl-sra ); */
 
 
 
@@ -318,7 +317,7 @@ l428pax5-ctl-fastq = 'pax5_fastq/L428-PAX5_1_input.fq.gz' 'pax5_fastq/L428-PAX5_
 ip-fastq = gunzip( gz: raji-ip-fastq namalwa-ip-fastq l428pax5-ip-fastq );
 ctl-fastq = gunzip( gz: raji-ctl-fastq namalwa-ctl-fastq l428pax5-ctl-fastq ); */
 
-csv = per-chromosome(
+/* csv = per-chromosome(
   ip-fastq:  fastq-filter( fastq: ip-fastq quality: quality )
   ctl-fastq: fastq-filter( fastq: ctl-fastq quality: quality )
   idx:       idx );
@@ -326,3 +325,11 @@ csv = per-chromosome(
 file_dispertions file_torte = diffpeakdetect( csv: cat( list: csv ) );
 
 file_dispertions file_torte;
+*/
+
+raji-ip-sra = 'sra/SRR748312.sra';
+ip-fastq = fastq-dump( sra: raji-ip-sra );
+
+ip-filtered = fastq-filter( fastq: ip-fastq quality: quality );
+
+ip-filtered;
