@@ -327,9 +327,13 @@ file_dispertions file_torte = diffpeakdetect( csv: cat( list: csv ) );
 file_dispertions file_torte;
 */
 
-raji-ip-sra = 'sra/SRR748312.sra';
+raji-ip-sra  = 'sra/SRR748312.sra';
+raji-ctl-sra = 'sra/SRR748318.sra';
+
 ip-fastq = fastq-dump( sra: raji-ip-sra );
+ctl-fastq = fastq-dump( sra: raji-ctl-sra );
 
-ip-filtered = fastq-filter( fastq: ip-fastq quality: quality );
+ip-filtered = fastq-filter( fastq: ip-fastq, quality: quality );
+ctl-filtered = fastq-filter( fastq: ctl-fastq, quality: quality );
 
-ip-filtered;
+ip-filtered ctl-filtered;
