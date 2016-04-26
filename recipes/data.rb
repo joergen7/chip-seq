@@ -5,13 +5,14 @@
 #
 # Copyright (c) 2015 Jörgen Brandt, All Rights Reserved.
 
-id_list = [576933, 576934, 576935, 576936, 576937, 576938, 653520, 653521, 653522]
-sra_dir  = "#{node.dir.data}/sra"
-
+id_list = [576933, 576938]
+sra_dir = "#{node.dir.data}/sra"
+ref_dir = "#{node.dir.data}/ref"
 
 # create directories
 directory node.dir.data
 directory sra_dir
+directory ref_dir
 
 # download read set
 id_list.each { |id|
@@ -26,3 +27,6 @@ id_list.each { |id|
   end
 }
 
+cookbook_file "#{ref_dir}/Escherichia_coli_K_12_MG1655.fasta" do
+  source "Escherichia_coli_K_12_MG1655.fasta"
+end
