@@ -69,6 +69,11 @@ deftask samtools-index( bai( File ) : bam( File ) )in bash *{
   samtools index $bam $bai
 }*
 
+deftask samtools-faidx( fai( File ) : fa( File ) )in bash *{
+  samtools faidx $fa
+  fai=$fa.fai
+}*
+
 deftask bamcoverage( bedgraph( File ) : bam( File ) bai( File ) )in bash *{
   bedgraph=$bam.bedgraph
   ln -sf $bai $bam.bai
@@ -82,16 +87,18 @@ deftask deeptools( bedgraph( File ) : sam( File ) ) {
   bedgraph = bamcoverage( bam: dedup_sorted_bam, bai: dedup_sorted_bai );
 }
 
-deftask bedtools-getfasta( bed_fa( File ) : fa( File ) bed( File ) )in bash *{
+deftask bedtools-getfasta( bed_fa( File ) : fa( File ) fai( File ) bed( File ) )in bash *{
   bed_fa=$bed.fa
+  ln -sf $fai $fa.fai
   bedtools getfasta -fi $fa -bed $bed -fo $bed_fa
 }*
 
-deftask restrict-peaks( restricted_bed( File ) : bed( File ) )in bash *{
+deftask extend-peaks( restricted_bed( File ) : bed( File ) )in bash *{
   restricted_bed=$bed.100.bed
-  perl -lane '$start=$F[1]-100 ; $end = $F[2]+100 ; print "$F[0]\t$start\t$end"' \
+  perl -lane '$start=$F[1] > 100 ? $F[1]-100 : 0; $end = $F[2]+100 ; print "$F[0]\t$start\t$end"' \
     $bed > $restricted_bed
 }*
+
 
 %% =========================================================
 %% INPUT DATA
@@ -113,6 +120,8 @@ ctl_fq = fastq-dump( sra: ctl_sra );
 % quality control
 qc = fastqc( fq: tag_fq ctl_fq );
 
+fai = samtools-faidx( fa: fa );
+
 % read mapping
 idx     = bowtie-build( fa: fa );
 tag_sam = bowtie-align( idx: idx, fq: tag_fq );
@@ -127,11 +136,11 @@ tag_deeptools_bedgraph = deeptools( sam: tag_sam );
 ctl_deeptools_bedgraph = deeptools( sam: ctl_sam );
 
 % extract fasta
-peaks_fa     = bedtools-getfasta( fa: fa, bed: peaks );
+peaks_fa     = bedtools-getfasta( fa: fa, fai: fai, bed: peaks );
 
-% restrict peak regions to +/- 100 ps around the peak and extract fasta
-peaks_100    = restrict-peaks( bed: peaks );
-peaks_100_fa = bedtools-getfasta( fa: fa, bed: peaks_100 );
+% extend regions to 100 bps around the peak region and extract fasta
+peaks_100    = extend-peaks( bed: peaks );
+peaks_100_fa = bedtools-getfasta( fa: fa, fai: fai, bed: peaks_100 );
 
 
 %% =========================================================
