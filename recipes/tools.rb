@@ -9,4 +9,5 @@ include_recipe "chef-bioinf-worker::sratools"
 include_recipe "chef-bioinf-worker::fastqc"
 include_recipe "chef-bioinf-worker::bowtie"
 include_recipe "chef-bioinf-worker::macs"
-
+include_recipe "chef-bioinf-worker::samtools"
+include_recipe "chef-bioinf-worker::deeptools"

@@ -6,6 +6,7 @@
  * FastQC      0.11.5
  * Bowtie      1.1.2
  * MACS        1.4.2-1
+ * deepTools   2.2.3
  *
  */
 
@@ -34,15 +35,15 @@ deftask bowtie-build( idx( File ) : fa( File ) )in bash *{
 deftask bowtie-align( sam( File ) : idx( File ) fq( File ) )in bash *{
   tar xf $idx
   sam=$fq.sam
-  bowtie btidx -q $fq -v 2 -m 1 -3 1 -S > $sam
+  bowtie btidx -q $fq -v 2 -m 1 -3 1 -S -p 2 > $sam
 }*
 
 deftask macs(
     peaks( File ) summits( File ) <xls( File )>
     bedgraph_tag( File ) bedgraph_ctl( File )
-  : sam_tag( File ) sam_ctl( File ) )in bash *{
+  : tag_sam( File ) ctl_sam( File ) )in bash *{
 
-  macs14 -t $sam_tag -c $sam_ctl --format SAM --gsize 4639675 --name "macs14" \
+  macs14 -t $tag_sam -c $ctl_sam --format SAM --gsize 4639675 --name "macs14" \
     --bw 400 --keep-dup 1 --bdg --single-profile --diag
 
   peaks=macs14_peaks.bed
@@ -54,7 +55,7 @@ deftask macs(
 
 deftask samtools-sort( sorted_bam( File ) : sam( File ) )in bash *{
   sorted_bam=sorted.bam
-  samtools view -bS $sam | samtools sort - sorted
+  samtools view -bS $sam | samtools sort -o $sorted_bam -
 }*
 
 deftask samtools-rmdup( dedup_bam( File ) : bam( File ) )in bash *{
@@ -69,17 +70,23 @@ deftask samtools-index( bai( File ) : bam( File ) )in bash *{
 
 deftask bamcoverage( bedgraph( File ) : bam( File ) bai( File ) )in bash *{
   bedgraph=$bam.bedgraph
-  bamCoverage --bam $bam --bamIndex $bai --outFileName $bedgraph \
-    --fragmentLength 200 --normalizeTo1x 4639675
+  ln -sf $bai $bam.bai
+  bamCoverage --bam $bam --outFileName $bedgraph --normalizeTo1x 4639675
 }*
 
+deftask deeptools( bedgraph( File ) : sam( File ) ) {
+  sorted_bam         = samtools-sort( sam: sam );
+  dedup_sorted_bam   = samtools-rmdup( bam: sorted_bam );
+  dedup_sorted_bai   = samtools-index( bam: dedup_sorted_bam );
+  bedgraph = bamcoverage( bam: dedup_sorted_bam, bai: dedup_sorted_bai );
+}
 
 %% =========================================================
 %% INPUT DATA
 %% =========================================================
 
-sra_tag = "sra/SRR576933.sra";
-sra_ctl = "sra/SRR576938.sra";
+tag_sra = "sra/SRR576933.sra";
+ctl_sra = "sra/SRR576938.sra";
 fa      = "ref/Escherichia_coli_K_12_MG1655.fasta";
 
 
@@ -88,26 +95,24 @@ fa      = "ref/Escherichia_coli_K_12_MG1655.fasta";
 %% =========================================================
 
 % extract fastq data
-fq_tag = fastq-dump( sra: sra_tag );
-fq_ctl = fastq-dump( sra: sra_ctl );
+tag_fq = fastq-dump( sra: tag_sra );
+ctl_fq = fastq-dump( sra: ctl_sra );
 
 % quality control
-qc = fastqc( fq: fq_tag fq_ctl );
+qc = fastqc( fq: tag_fq ctl_fq );
 
 % read mapping
 idx     = bowtie-build( fa: fa );
-sam_tag = bowtie-align( idx: idx, fq: fq_tag );
-sam_ctl = bowtie-align( idx: idx, fq: fq_ctl );
+tag_sam = bowtie-align( idx: idx, fq: tag_fq );
+ctl_sam = bowtie-align( idx: idx, fq: ctl_fq );
 
 % peak calling with macs
-peaks summits xls bedgraph_macs_tag bedgraph_macs_ctl = macs(
-  sam_tag: sam_tag, sam_ctl: sam_ctl );
+peaks summits xls tag_macs_bedgraph ctl_macs_bedgraph = macs(
+  tag_sam: tag_sam, ctl_sam: ctl_sam );
 
 % visualization with deeptools
-sorted_bam_tag         = samtools-sort( sam: sam_tag );
-dedup_sorted_bam_tag   = samtools-dedup( bam: sorted_bam_tag );
-dedup_sorted_bai_tag   = samtools-index( bam: dedup_sorted_bam_tag );
-bedgraph_deeptools_tag = bamcoverage( bam: dedup_sorted_bam_tag, bai: dedup_sorted_bai_tag );
+tag_deeptools_bedgraph = deeptools( sam: tag_sam );
+ctl_deeptools_bedgraph = deeptools( sam: ctl_sam );
 
 
 %% =========================================================
@@ -115,7 +120,7 @@ bedgraph_deeptools_tag = bamcoverage( bam: dedup_sorted_bam_tag, bai: dedup_sort
 %% =========================================================
 
 qc peaks
-bedgraph_macs_tag bedgraph_macs_ctl
-bedgraph_deeptools_tag bedgraph_deeptools_ctl;
+tag_macs_bedgraph ctl_macs_bedgraph
+tag_deeptools_bedgraph ctl_deeptools_bedgraph;
 
 
