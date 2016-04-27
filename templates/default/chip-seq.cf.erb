@@ -93,9 +93,9 @@ deftask bedtools-getfasta( bed_fa( File ) : fa( File ) fai( File ) bed( File ) )
   bedtools getfasta -fi $fa -bed $bed -fo $bed_fa
 }*
 
-deftask extend-peaks( restricted_bed( File ) : bed( File ) )in bash *{
+deftask restrict-peaks( restricted_bed( File ) : bed( File ) )in bash *{
   restricted_bed=$bed.100.bed
-  perl -lane '$start=$F[1] > 100 ? $F[1]-100 : 0; $end = $F[2]+100 ; print "$F[0]\t$start\t$end"' \
+  perl -lane '$start=$F[1]+100; $end = $F[2]-100 ; print "$F[0]\t$start\t$end"' \
     $bed > $restricted_bed
 }*
 
@@ -135,11 +135,11 @@ peaks summits xls tag_macs_bedgraph ctl_macs_bedgraph = macs(
 tag_deeptools_bedgraph = deeptools( sam: tag_sam );
 ctl_deeptools_bedgraph = deeptools( sam: ctl_sam );
 
+% restrict regions clipping 100 bps off both ends of the peak region
+peaks_100    = restrict-peaks( bed: peaks );
+
 % extract fasta
 peaks_fa     = bedtools-getfasta( fa: fa, fai: fai, bed: peaks );
-
-% extend regions to 100 bps around the peak region and extract fasta
-peaks_100    = extend-peaks( bed: peaks );
 peaks_100_fa = bedtools-getfasta( fa: fa, fai: fai, bed: peaks_100 );
 
 
