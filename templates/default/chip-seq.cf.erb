@@ -71,7 +71,7 @@ deftask samtools-index( bai( File ) : bam( File ) )in bash *{
 deftask bamcoverage( bedgraph( File ) : bam( File ) bai( File ) )in bash *{
   bedgraph=$bam.bedgraph
   ln -sf $bai $bam.bai
-  bamCoverage --bam $bam --outFileName $bedgraph --normalizeTo1x 4639675
+  bamCoverage --bam $bam --outFileName $bedgraph --normalizeTo1x 4639675 --outFileFormat bedgraph
 }*
 
 deftask deeptools( bedgraph( File ) : sam( File ) ) {
