@@ -7,6 +7,7 @@
  * Bowtie      1.1.2
  * MACS        1.4.2-1
  * deepTools   2.2.3
+ * bedtools    2.25.0
  *
  */
 
@@ -81,6 +82,17 @@ deftask deeptools( bedgraph( File ) : sam( File ) ) {
   bedgraph = bamcoverage( bam: dedup_sorted_bam, bai: dedup_sorted_bai );
 }
 
+deftask bedtools-getfasta( bed_fa( File ) : fa( File ) bed( File ) )in bash *{
+  bed_fa=$bed.fa
+  bedtools getfasta -fi $fa -bed $bed -fo $bed_fa
+}*
+
+deftask restrict-peaks( restricted_bed( File ) : bed( File ) )in bash *{
+  restricted_bed=$bed.100.bed
+  perl -lane '$start=$F[1]-100 ; $end = $F[2]+100 ; print "$F[0]\t$start\t$end"' \
+    $bed > $restricted_bed
+}*
+
 %% =========================================================
 %% INPUT DATA
 %% =========================================================
@@ -110,16 +122,23 @@ ctl_sam = bowtie-align( idx: idx, fq: ctl_fq );
 peaks summits xls tag_macs_bedgraph ctl_macs_bedgraph = macs(
   tag_sam: tag_sam, ctl_sam: ctl_sam );
 
-% visualization with deeptools
+% coverage visualization with deeptools
 tag_deeptools_bedgraph = deeptools( sam: tag_sam );
 ctl_deeptools_bedgraph = deeptools( sam: ctl_sam );
+
+% extract fasta
+peaks_fa     = bedtools-getfasta( fa: fa, bed: peaks );
+
+% restrict peak regions to +/- 100 ps around the peak and extract fasta
+peaks_100    = restrict-peaks( bed: peaks );
+peaks_100_fa = bedtools-getfasta( fa: fa, bed: peaks_100 );
 
 
 %% =========================================================
 %% QUERY
 %% =========================================================
 
-qc peaks
+qc peaks peaks_fa peaks_100_fa
 tag_macs_bedgraph ctl_macs_bedgraph
 tag_deeptools_bedgraph ctl_deeptools_bedgraph;
 
