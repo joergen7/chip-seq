@@ -71,8 +71,8 @@ deftask samtools-index( bai( File ) : bam( File ) )in bash *{
 }*
 
 deftask samtools-faidx( fai( File ) : fa( File ) )in bash *{
-  samtools faidx $fa
   fai=$fa.fai
+  samtools faidx $fa
 }*
 
 deftask bamcoverage( bedgraph( File ) : bam( File ) bai( File ) )in bash *{
