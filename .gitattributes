@@ -1,1 +1,1 @@
-*.cf linguist-language=Cuneiform
+*.cf.erb linguist-language=Cuneiform
