@@ -1,32 +1,39 @@
-# coding: utf-8
 #
-# Cookbook Name:: chip-seq
+# Cookbook:: chip-seq
 # Recipe:: data
 #
-# Copyright (c) 2015 Jörgen Brandt, All Rights Reserved.
-
-id_list = [576933, 576938]
-sra_dir = "#{node.dir.data}/sra"
-ref_dir = "#{node.dir.data}/ref"
+# Copyright:: 2015-2018 Jörgen Brandt
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 # create directories
-directory node.dir.data
-directory sra_dir
-directory ref_dir
+directory node["dir"]["data"]
 
-# download read set
-id_list.each { |id|
+remote_file "#{node["dir"]["data"]}/SRR576933.sra" do
+  action :create_if_missing
+  source "ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByStudy/sra/SRP/SRP015/SRP015911/SRR576933/SRR576933.sra"
+  retries 1
+end
 
-  url = "ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByStudy/sra/SRP/SRP015/SRP015911/SRR#{id}/SRR#{id}.sra"
-  sra_file = "#{sra_dir}/SRR#{id}.sra"
-  
-  remote_file sra_file do
+remote_file "#{node["dir"]["data"]}/SRR576938.sra" do
+  action :create_if_missing
+  source "ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByStudy/sra/SRP/SRP015/SRP015911/SRR576938/SRR576938.sra"
+  retries 1
+end
+
+remote_file "#{node["dir"]["data"]}/GCF_000005845.2_ASM584v2_genomic.fna.gz" do
     action :create_if_missing
-    source url
+    source "ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
     retries 1
-  end
-}
-
-cookbook_file "#{ref_dir}/Escherichia_coli_K_12_MG1655.fasta" do
-  source "Escherichia_coli_K_12_MG1655.fasta"
 end

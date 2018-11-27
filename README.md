@@ -1,4 +1,4 @@
-# chip-seq
+# ChIP-Seq
 
 This workflow demonstrates ChIP-Seq analysis in *Escherichia coli* by performing peak detection in a treatment sample using MACS. It is a Cuneiform transcription of a [hands-on introduction to ChIP-Seq](http://www.biologie.ens.fr/~mthomas/other/chip-seq-training/) by Morgane Thomas-Chollier which itself is based on a study by [Myers et al. 2013](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1003565).
 

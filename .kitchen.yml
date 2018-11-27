@@ -22,11 +22,10 @@ provisioner:
 #  require_chef_omnibus: 12.5.0
 
 platforms:
-  - name: ubuntu-16.04
+  - name: ubuntu-18.04
 
 suites:
   - name: default
     run_list:
-      - recipe[chip-seq::_common]
       - recipe[chip-seq::default]
     attributes:
